@@ -1,4 +1,5 @@
 import os
+import re
 from PIL import Image, ExifTags
 
 # Set the max file size to 5MB (5 * 1024 * 1024 bytes)
@@ -37,6 +38,19 @@ def resize_image(file_path, output_path, max_width=1920, max_height=1080):
         img.thumbnail((max_width, max_height), Image.ANTIALIAS)
         img.save(output_path, optimize=True, quality=85)
 
+def clean_facetune_filename(filename):
+    pattern = r"(Facetune_)(\d{2}-\d{2}-\d{4}-)(\d{2}-\d{2}-\d{2})(\.jpg)"
+
+    # Check if the pattern exists in the filename
+    if re.search(pattern, filename):
+        # Use re.sub to remove the date part from the filename
+        new_filename = re.sub(pattern, r"\1\3\4", filename)
+        return new_filename
+    else:
+        # If no pattern is found, return the original filename
+        return filename
+
+
 def check_and_compress_files(directory):
     # Create subfolders for compressed images and incompatible originals
     compressed_folder = os.path.join(directory, 'compressed_images')
@@ -47,17 +61,31 @@ def check_and_compress_files(directory):
     if not os.path.exists(incompatible_folder):
         os.makedirs(incompatible_folder)
 
-    for root, dirs, files in os.walk(directory):
-        for file_name in files:
-            file_path = os.path.join(root, file_name)
-            
-            # Check if it's an image file
-            if file_name.lower().endswith(('png', 'jpg', 'jpeg', 'bmp', 'tiff')):
-                # Get the file size
-                file_size = os.path.getsize(file_path)
+    # Initialize a flag to check if any image files are found
+    found_image_files = False
 
+    for file_name in os.listdir(directory):
+        file_path = os.path.join(directory, file_name)
+        
+        # Check if it's an image file and it's not a directory
+        if os.path.isfile(file_path) and file_name.lower().endswith(('png', 'jpg', 'jpeg', 'bmp', 'tiff')):
+            found_image_files = True  # Set the flag to True as we found an image file
+
+
+            
+            # Get the file size
+            file_size = os.path.getsize(file_path)
+            
+
+            cleaned_filename = clean_facetune_filename(file_name)
+            cleaned_file_path = os.path.join(root, cleaned_filename)
+
+
+            if cleaned_filename != file_name:
+                    os.rename(file_path, cleaned_file_path)
+                    file_path = cleaned_file_path
                 # If the file is larger than 5MB
-                if file_size > MAX_SIZE:
+            if file_size > MAX_SIZE:
                     print(f"{file_name} is larger than 5MB, compressing...")
                     
                     # Create a path for the compressed file in the subfolder
@@ -81,13 +109,16 @@ def check_and_compress_files(directory):
                     else:
                         print(f"Failed to reduce {file_name} under 5MB, moving original to incompatible folder.")
                         # Move the original file to the incompatible folder
-                        incompatible_file_path = os.path.join(incompatible_folder, file_name)
+                        incompatible_file_path = os.path.join(incompatible_folder, cleaned_filename)
                         os.rename(file_path, incompatible_file_path)
-                else:
+            else:
                     print(f"{file_name} is already under 5MB, moving to compressed folder.")
                     # Move file to compressed folder if it's already under 5MB
-                    compressed_file_path = os.path.join(compressed_folder, file_name)
+                    compressed_file_path = os.path.join(compressed_folder, cleaned_filename)
                     os.rename(file_path, compressed_file_path)
+
+    if not found_image_files:
+        print("No image files found in the specified directory.")
 
 def move_leftover_files(directory):
     """Move any leftover files over 5MB to the incompatible folder."""
@@ -119,4 +150,6 @@ def move_leftover_files(directory):
 directory = r"C:\Users\Dreid\Desktop\Brain\Projects\Set Up Tiktok Shop\Pics"
 check_and_compress_files(directory)
 move_leftover_files(directory)
+
+# FIX BUG WITH NAME LENGTH!
 
